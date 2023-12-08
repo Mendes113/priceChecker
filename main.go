@@ -1,18 +1,50 @@
-	package main
+package main
 
-	import (
-		"bufio"
-		"encoding/csv"
-		"fmt"
-		"log"
-		"net/http"
-		"net/smtp"
-		"os"
-		"strconv"
-		"strings"
+import (
+	"bufio"
+	"context"
+	"encoding/csv"
+	"fmt"
+	"log"
+	"net/http"
+	"net/smtp"
+	"os"
+	"strconv"
+	"strings"
 
-		"github.com/PuerkitoBio/goquery"
-	)
+	"github.com/PuerkitoBio/goquery"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+
+	func connectToMongoDB() (*mongo.Client, error) {
+		clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+		client, err := mongo.Connect(context.TODO(), clientOptions)
+		if err != nil {
+			return nil, err
+		}
+	
+		err = client.Ping(context.TODO(), nil)
+		if err != nil {
+			return nil, err
+		}
+	
+		fmt.Println("Successfully connected to MongoDB!")
+		return client, nil
+	}
+	
+
+	// Function to create the product table in PostgreSQL
+// Function to save product data to PostgreSQL
+func saveToMongoDB(client *mongo.Client, product Product) error {
+    collection := client.Database("your_database_name").Collection("products")
+    _, err := collection.ReplaceOne(context.TODO(), bson.M{"name": product.Name}, product, options.Replace().SetUpsert(true))
+    return err
+}
+
+
 
 	type Product struct {
 		Name          string
@@ -28,12 +60,24 @@
 	
 
 
-
 	func main() {
 		productMap = make(map[string]*Product)
-	
+		
+
+		mongoClient, err := connectToMongoDB()
+if err != nil {
+    log.Fatal(err)
+}
+defer mongoClient.Disconnect(context.TODO())
+
+
+
+
 		url := "https://www.amazon.com.br/Monitor-Philips-21-5-com-HDMI/dp/B09BG8BXCK/ref=d_pd_sbs_sccl_3_3/135-0951879-7592106?content-id=amzn1.sym.ec300dba-f3bc-4b4b-a130-7de1ff98f079&pd_rd_i=B09BG8BXCK&psc=1"
-	
+		
+		
+
+
 		priceFloat, productName, err := getPriceAndProductName(url)
 		if err != nil {
 			log.Fatal(err)
@@ -70,6 +114,19 @@
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		// Replace saveToCsv with saveToMongoDB
+		err = saveToMongoDB(mongoClient, Product{
+			Name:         productName,
+			Price:        strconv.FormatFloat(priceFloat, 'f', -1, 64),
+			Variation:    variation,
+			HighestPrice: highestPrice,
+			LowestPrice:  lowestPrice,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+	
 	}
 	
 
